@@ -113,13 +113,27 @@ add_req(CC, Nome, Morada, Telefone, Codigo) ->
 			%isto vai inserir na tabela req
 		Row= #req{cartaoC=CC, nome=Nome, morada=Morada, 
 			telefone=Telefone,codigo=NCodigo,nLivro=NLivro,autores=NAutores},
-		mnesia:write(Row)
+		mnesia:write(Row),
+		mk(CC, Nome, Morada, Telefone, Codigo)
 
 		end
-		
-
 	end,
 	mnesia:transaction(F).
+
+mk(CC, Nome, Morada, Telefone, [Codigo|T]) ->
+	[X] = mnesia:read({livro,Codigo}),
+		
+		if Codigo =:= X#livro.codigo ->
+			NCodigo= X#livro.codigo,
+			NLivro= X#livro.nLivro,
+			NAutores= X#livro.autores,
+			%isto vai inserir na tabela req
+		Row= #req{cartaoC=CC, nome=Nome, morada=Morada, 
+			telefone=Telefone,codigo=NCodigo,nLivro=NLivro,autores=NAutores},
+		mnesia:write(Row)
+		end,
+		mk(CC, Nome, Morada, Telefone, T);
+mk(_,_,_,_,[])->ok.
 
 
 %vai retornar o livro
