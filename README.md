@@ -6,13 +6,16 @@ Iniciar as tabelas:
 
 
 ____:init().
+
 ____:start().
+
 ____:reset_tables().
+
 
 Adicionar requesiçoes:
 
 
-_____:add_req(______).
+____:add_req(______).
 
 ver a tabela req:
 
