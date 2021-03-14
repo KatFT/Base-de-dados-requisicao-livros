@@ -1,8 +1,7 @@
 -module(trabalho1).
-
+-author("Catarina Teixeira").
 -compile(export_all).
 -import(lists, [foreach/2]).
-
 
 %Essa estrutura deve guardar requisições que são pares 
 %de identificadores de pessoas e de livros requisitados por essa pessoa.
@@ -35,18 +34,20 @@
 %de momento acho q n preciso do record de pessoas, so o livro e o requesiçoes
 %
 -include_lib("stdlib/include/qlc.hrl").
+%req basta ter o cartaoC da pessoa e codigo do livro... 
+%as outras informações podes ir buscar a pessoa (dado o cartaoC) e a livro (dado o codigo)
 -record(pessoa, {cartaoC ,nome, morada, telefone}).
 -record(livro, {codigo, nLivro, autores}).
--record(req, {cartaoC, nome, morada, telefone, codigo, nLivro,autores}).
+-record(req, {cC, cod}).
 
 
 %inicializar as tabelas (so e preciso fazer isto uma vez)
 init() ->
 	mnesia:create_schema([node()]),
 	mnesia:start(),
-	mnesia:create_table(pessoa,[{type, bag},{attributes, record_info(fields, pessoa)}]),
-	mnesia:create_table(livro, [{type, bag},{attributes, record_info(fields, livro)}]),
-	mnesia:create_table(req,   [{type, bag},{attributes, record_info(fields, req)}]),
+	mnesia:create_table(pessoa,[{attributes, record_info(fields, pessoa)}]),
+	mnesia:create_table(livro, [{attributes, record_info(fields, livro)}]),
+	mnesia:create_table(req,   [{type,bag},{attributes, record_info(fields, req)}]),
 	mnesia:stop().
 
 %esperar pelas tabelas
@@ -61,7 +62,7 @@ tabelas() ->
 	{livro, 32, "os maias", "eça de queiros"},
 	{livro, 42, "o sentido da vida", "pedro ribeiro"},
 	%tabela das requisiçoes
-	{req, 12,"a","aaa",121212121,1111,"q","qwee"},
+	{req, 12121, 43},
 	%tabela das pessoas
 	{pessoa, 3006, "Catarina Teixeira", "rua atum", 11234},
 	{pessoa, 3444, "Aberto barroso","rua dos adultos", 334343},
@@ -72,9 +73,11 @@ do(Q) ->
     F = fun() -> qlc:e(Q) end,
     {atomic, Val} = mnesia:transaction(F),
     Val.
+
 reset_tables() ->
     mnesia:clear_table(livro),
     mnesia:clear_table(req),
+    mnesia:clear_table(pessoa),
     F = fun() ->
 		    foreach(fun mnesia:write/1, tabelas())
 	  end,
@@ -83,6 +86,7 @@ reset_tables() ->
 aaa(Codigo) ->
 	do(qlc:q([X || X <- mnesia:table(livro),
 		X#livro.codigo=:=Codigo])).
+	
 a(show) ->
 	do(qlc:q([X|| X<-mnesia:table(req)])).
 
@@ -94,47 +98,37 @@ add(Codigo, Livro,Autor) ->
 	end,
 	mnesia:transaction(F).
 
+%---------lookup-----------------%
+
+%select livro.nome
+%from req,livro
+%where req.codigo=livro.codigo and req.cc=L
+
+
+
+%---------------------------------%
+
+
+%-----------update----------------%
+
+%------adicionar requesiçoes------%
 %adicionar pessoa a lista de requesiçoes
 %a partir da inf da pessoa e codigo do livro
 add_req(CC, Nome, Morada, Telefone, Codigo) ->
-	
-	
 	F= fun() ->
-		%vamos buscar qql informaçao q ha com aquele codigo
-		%Query= qlc:q([X || X <- mnesia:table(livro),
-		%		X#livro.codigo=:=Codigo]),
-		
-		[X] = mnesia:read({livro,Codigo}),
-		
-		if Codigo =:= X#livro.codigo ->
-			NCodigo= X#livro.codigo,
-			NLivro= X#livro.nLivro,
-			NAutores= X#livro.autores,
-			%isto vai inserir na tabela req
-		Row= #req{cartaoC=CC, nome=Nome, morada=Morada, 
-			telefone=Telefone,codigo=NCodigo,nLivro=NLivro,autores=NAutores},
-		mnesia:write(Row),
-		mk(CC, Nome, Morada, Telefone, Codigo)
+		Pessoa= #pessoa{cartaoC=CC,nome=Nome, morada=Morada, telefone=Telefone},
+		mnesia:write(Pessoa),
+		C=Pessoa#pessoa.cartaoC,
 
-		end
+		mk(C,Codigo)
+		
 	end,
 	mnesia:transaction(F).
 
-mk(CC, Nome, Morada, Telefone, [Codigo|T]) ->
-	[X] = mnesia:read({livro,Codigo}),
-		
-		if Codigo =:= X#livro.codigo ->
-			NCodigo= X#livro.codigo,
-			NLivro= X#livro.nLivro,
-			NAutores= X#livro.autores,
-			%isto vai inserir na tabela req
-		Row= #req{cartaoC=CC, nome=Nome, morada=Morada, 
-			telefone=Telefone,codigo=NCodigo,nLivro=NLivro,autores=NAutores},
-		mnesia:write(Row)
-		end,
-		mk(CC, Nome, Morada, Telefone, T);
-mk(_,_,_,_,[])->ok.
+mk(CC,[Codigo|T]) ->
+	mnesia:write(#req{cC=CC, cod=Codigo}),
+	mk(CC,T);
 
-
-%vai retornar o livro
+mk(_,[])-> ok.
+%-----------------------------------%
 
