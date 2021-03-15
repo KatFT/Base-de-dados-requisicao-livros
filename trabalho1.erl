@@ -29,13 +29,12 @@
 %-retorno: dado um número de cartão de cidadão e o código de
 % um livro retira o par respectivo da base de dados;
 
-%start() -> register(simpleTable, spawn(fun() -> loop() end))
-			
-%de momento acho q n preciso do record de pessoas, so o livro e o requesiçoes
-%
 -include_lib("stdlib/include/qlc.hrl").
+
+%--------------------------------------%
 %req basta ter o cartaoC da pessoa e codigo do livro... 
-%as outras informações podes ir buscar a pessoa (dado o cartaoC) e a livro (dado o codigo)
+%as outras informações podes ir buscar a pessoa (dado o cartaoC) e a
+% livro (dado o codigo)
 -record(pessoa, {cartaoC ,nome, morada, telefone}).
 -record(livro, {codigo, nLivro, autores}).
 -record(req, {cC, cod}).
@@ -58,11 +57,14 @@ start() ->
 %exemplos de tabelas
 tabelas() ->
 	[%tabela dos livros
-	{livro, 1234, "principezinho", "atum"},
-	{livro, 32, "os maias", "eça de queiros"},
-	{livro, 42, "o sentido da vida", "pedro ribeiro"},
+	{livro, "1234", "principezinho", "atum"},
+	{livro, "32", "os maias", "eça de queiros"},
+	{livro, "42", "o sentido da vida", "pedro ribeiro"},
+	{livro, "33", "os maias", "eça de queiros"},
+
 	%tabela das requisiçoes
-	{req, 12121, 43},
+	{req, 3006, "32"},
+	{req, 3444,"1234"},
 	%tabela das pessoas
 	{pessoa, 3006, "Catarina Teixeira", "rua atum", 11234},
 	{pessoa, 3444, "Aberto barroso","rua dos adultos", 334343},
@@ -83,52 +85,132 @@ reset_tables() ->
 	  end,
     mnesia:transaction(F).
 
+%----------------------------------------------%
+%funçoes de debug
 aaa(Codigo) ->
 	do(qlc:q([X || X <- mnesia:table(livro),
 		X#livro.codigo=:=Codigo])).
-	
+%	
 a(show) ->
 	do(qlc:q([X|| X<-mnesia:table(req)])).
 
+%-----------------------------------------------%
 
-add(Codigo, Livro,Autor) ->
-	Row=#livro{codigo=Codigo,nLivro=Livro,autores=Autor},
-	F= fun() ->
-		mnesia:write(Row)
-	end,
-	mnesia:transaction(F).
-
+%--------------------------------%
 %---------lookup-----------------%
+%--------------------------------%
 
-%select livro.nome
-%from req,livro
-%where req.codigo=livro.codigo and req.cc=L
+%------------emprestimo---------------%
+%- empréstimos: dado o título de um livro determina 
+%a lista de pessoas que requisitaram esse livro;
+
+%SQL equivalent
+%SELECT pessoa.nome
+%FROM pessoa, req,livro
+%WHERE req.codigo=livro.codigo 
+%AND pessoa.cartaoC=req.cC
+
+emprestimos(Livro) ->
+	do(qlc:q([X#pessoa.nome || X <-mnesia:table(pessoa),
+		A <- mnesia:table(req),B<-mnesia:table(livro),
+		B#livro.codigo=:= A#req.cod,
+		B#livro.nLivro=:=Livro,
+		X#pessoa.cartaoC=:= A#req.cC])).
 
 
+%--------------requisitado-----------------%
+%- requisitado: dado o código de um livro determina 
+%se o livro está requisitado (retorna um booleano);
+
+%Versao mt feia
+%requesitado(Codigo) ->
+%	F = fun()->
+%		qlc:e(qlc:q([A ||
+%		A<-mnesia:table(req), A#req.cod=:=Codigo])),
+%		io:format("True ~n")
+%	end,
+%	 {atomic, Val} = mnesia:transaction(F),
+%   Val.
+
+
+requesitado(Codigo) ->
+	Q= do(qlc:q([A ||
+		A<-mnesia:table(req), A#req.cod=:=Codigo])),
+	W=length(Q),
+		if W >0 -> 
+			'true';
+			true-> 'false'
+		end.
+
+
+
+
+%-------------livros--------------------%
+%livros: dado um número de cartão de cidadão determina 
+%a lista de livros requisitada por essa pessoa;
+
+%SQL equivalent
+%SELECT livro.nLivro
+%FROM livro,req
+%WHERE req.cod=livro.codigo
+%AND cc=req.cc
+
+livros(CC) ->
+	do(qlc:q([X#livro.nLivro || X<-mnesia:table(livro),
+		A<-mnesia:table(req),
+		A#req.cC=:=CC, X#livro.codigo=:=A#req.cod])).
+%-------------------codigos------------------%
+%códigos: dado o título de um livro retorna a lista de 
+%códigos de livros com esse título;
+
+%SQL equivalent
+%SELECT livro.nLivro
+%FROM livro
+%WHERE livro.codigo=livro
+
+codigos(Livro) ->
+	do(qlc:q([X#livro.codigo || X<-mnesia:table(livro),
+		X#livro.nLivro=:=Livro])).
+
+%--------------nRequisiçoes-----------------------%
+%numRequisicões: dado um número de cartão de cidadão retorna
+% o número de livros requisitados por essa pessoa;
+
+
+nRequisicoes(CC) ->
+	Q=do(qlc:q([X#req.cod || X<-mnesia:table(req),
+		A<-mnesia:table(pessoa), A#pessoa.cartaoC=:=X#req.cC,
+		A#pessoa.cartaoC=:=CC])),
+	length(Q).
+
+
+
+%-------------------------------------------------------------%
 
 %---------------------------------%
-
-
 %-----------update----------------%
+%---------------------------------%
 
 %------adicionar requesiçoes------%
 %adicionar pessoa a lista de requesiçoes
 %a partir da inf da pessoa e codigo do livro
-add_req(CC, Nome, Morada, Telefone, Codigo) ->
-	F= fun() ->
-		Pessoa= #pessoa{cartaoC=CC,nome=Nome, morada=Morada, telefone=Telefone},
-		mnesia:write(Pessoa),
-		C=Pessoa#pessoa.cartaoC,
 
-		mk(C,Codigo)
-		
+add_req(CC,Codigo) ->
+	F= fun() ->
+		mnesia:write(#req{cC=CC, cod=Codigo})
 	end,
 	mnesia:transaction(F).
 
-mk(CC,[Codigo|T]) ->
-	mnesia:write(#req{cC=CC, cod=Codigo}),
-	mk(CC,T);
-
-mk(_,[])-> ok.
 %-----------------------------------%
+%-----------retorno-----------------%
+
+%dado um número de cartão de cidadão e o código 
+%de um livro retira o par respectivo da base de dados
+
+retorno(CC,Codigo) ->
+	F= fun() ->
+		mnesia:delete_object(#req{cC=CC, cod=Codigo})
+	end,
+	mnesia:transaction(F).
+%--------------------------------------%
 
