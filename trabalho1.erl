@@ -47,7 +47,7 @@ init() ->
 	mnesia:create_table(pessoa,[{attributes, record_info(fields, pessoa)}]),
 	mnesia:create_table(livro, [{attributes, record_info(fields, livro)}]),
 	mnesia:create_table(req,   [{type,bag},{attributes, record_info(fields, req)}]),
-	mnesia:stop().
+	mnesia:stop(),ok.
 
 %esperar pelas tabelas
 start() ->
@@ -91,7 +91,7 @@ aaa(Codigo) ->
 	do(qlc:q([X || X <- mnesia:table(livro),
 		X#livro.codigo=:=Codigo])).
 %	
-a(show) ->
+atum() ->
 	do(qlc:q([X|| X<-mnesia:table(req)])).
 
 %-----------------------------------------------%
@@ -196,10 +196,19 @@ nRequisicoes(CC) ->
 %a partir da inf da pessoa e codigo do livro
 
 add_req(CC,Codigo) ->
+	Q=length(do(qlc:q([X|| X<-mnesia:table(livro),
+		X#livro.codigo=:=Codigo]))),	
 	F= fun() ->
-		mnesia:write(#req{cC=CC, cod=Codigo})
+		if Q>0 ->
+			mnesia:write(#req{cC=CC, cod=Codigo});
+			
+			true ->  io:format("Não existe o código!~n")	
+		end
 	end,
 	mnesia:transaction(F).
+	
+
+	
 
 %-----------------------------------%
 %-----------retorno-----------------%
