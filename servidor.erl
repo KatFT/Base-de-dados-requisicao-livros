@@ -30,53 +30,61 @@ nReq(CC) -> rpc({nReq,CC}).
 
 add(CC,Codigo) -> rpc({add,CC,Codigo}).
 
+ret(CC,Codigo) -> rpc({ret,CC,Codigo}).
 
+%------------------------------
+%stop(processo) -> processo ! {stop,self(),0},ok.
+stop() -> rpc({stop}),ok.
 rpc(Q) ->
-    processo ! {self(), Q},
+    Ref=make_ref(),
+    processo ! {self(),Ref, Q},
     receive
-    {processo, Reply} ->
+    {processo, Ref, Reply} ->
         Reply
     end.
 
 loop() ->  
     receive
-    {From, {init}} ->  
-        From ! {processo, trabalho1:init()},
+    {From,Ref, {init}} ->  
+        From ! {processo,Ref, trabalho1:init()},
         loop();
         
-    {From, {start}} -> 
-        From ! {processo, trabalho1:start()},
+    {From,Ref, {start}} -> 
+        From ! {processo, Ref,trabalho1:start()},
         loop();
-    {From, {reset}} ->
-        From ! {processo, trabalho1:reset_tables()},
+    {From,Ref, {reset}} ->
+        From ! {processo,Ref, trabalho1:reset_tables()},
         loop();
-    {From, {atum}} ->
-        From ! {processo, trabalho1:atum()},
+    {From, Ref,{atum}} ->
+        From ! {processo, Ref,trabalho1:atum()},
         loop();
-    {From, {empr,Livro}} ->
-        From ! {processo, trabalho1:emprestimos(Livro)},
+    {From,Ref, {empr,Livro}} ->
+        From ! {processo, Ref,trabalho1:emprestimos(Livro)},
         loop();
-    {From, {req,Codigo}} ->
-        From ! {processo, trabalho1:requesitado(Codigo)},
+    {From,Ref, {req,Codigo}} ->
+        From ! {processo,Ref, trabalho1:requesitado(Codigo)},
         loop();
-    {From, {book,CC}} ->
-        From ! {processo, trabalho1:livros(CC)},
+    {From, Ref,{book,CC}} ->
+        From ! {processo,Ref, trabalho1:livros(CC)},
         loop();
-    {From, {code,Livro}} ->
-        From ! {processo, trabalho1:codigos(Livro)},
+    {From, Ref,{code,Livro}} ->
+        From ! {processo, Ref,trabalho1:codigos(Livro)},
         loop();
-    {From, {nReq,CC}} ->
-        From ! {processo, trabalho1:nRequisicoes(CC)},
+    {From,Ref, {nReq,CC}} ->
+        From ! {processo,Ref, trabalho1:nRequisicoes(CC)},
         loop();
-    {From, {add,CC,Codigo}} ->
-        From ! {processo, trabalho1:add_req(CC,Codigo)},
+    {From,Ref, {add,CC,Codigo}} ->
+        From ! {processo, Ref,trabalho1:add_req(CC,Codigo)},
         %io:format("Não existe!~n"),
-        loop()
-
-
-
-        
-        
+        loop();
+    {From,Ref, {ret,CC,Codigo}} ->
+        From ! {processo,Ref, trabalho1:retorno(CC,Codigo)},
+        loop();
+    %{stop,From,Ref} ->
+    {From,Ref, {stop}} ->
+        From ! {processo,Ref,ok},
+        io:format("SERVIDOR FOI FECHADO!~n"),
+        ok
     end.
 
 %% Abrir uma nova máquina virtual:

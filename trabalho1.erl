@@ -105,13 +105,13 @@ atum() ->
 %a lista de pessoas que requisitaram esse livro;
 
 %SQL equivalent
-%SELECT pessoa.nome
+%SELECT pessoa
 %FROM pessoa, req,livro
 %WHERE req.codigo=livro.codigo 
 %AND pessoa.cartaoC=req.cC
 
 emprestimos(Livro) ->
-	do(qlc:q([X#pessoa.nome || X <-mnesia:table(pessoa),
+	do(qlc:q([X || X <-mnesia:table(pessoa),
 		A <- mnesia:table(req),B<-mnesia:table(livro),
 		B#livro.codigo=:= A#req.cod,
 		B#livro.nLivro=:=Livro,
@@ -132,7 +132,6 @@ emprestimos(Livro) ->
 %	 {atomic, Val} = mnesia:transaction(F),
 %   Val.
 
-
 requesitado(Codigo) ->
 	Q= do(qlc:q([A ||
 		A<-mnesia:table(req), A#req.cod=:=Codigo])),
@@ -141,9 +140,6 @@ requesitado(Codigo) ->
 			'true';
 			true-> 'false'
 		end.
-
-
-
 
 %-------------livros--------------------%
 %livros: dado um número de cartão de cidadão determina 
@@ -156,7 +152,7 @@ requesitado(Codigo) ->
 %AND cc=req.cc
 
 livros(CC) ->
-	do(qlc:q([X#livro.nLivro || X<-mnesia:table(livro),
+	do(qlc:q([X || X<-mnesia:table(livro),
 		A<-mnesia:table(req),
 		A#req.cC=:=CC, X#livro.codigo=:=A#req.cod])).
 %-------------------codigos------------------%
@@ -194,31 +190,47 @@ nRequisicoes(CC) ->
 %------adicionar requesiçoes------%
 %adicionar pessoa a lista de requesiçoes
 %a partir da inf da pessoa e codigo do livro
-
+%Assumi que a pessoa já existia,
+%verifica se o codigo do livro existe na tabela livros
+%vai escrever na tabela req, se nao imprime que nao existe codigo
 add_req(CC,Codigo) ->
 	Q=length(do(qlc:q([X|| X<-mnesia:table(livro),
-		X#livro.codigo=:=Codigo]))),	
+		X#livro.codigo=:=Codigo]))),
+	A= length(do(qlc:q([X|| X<-mnesia:table(pessoa),
+		X#pessoa.cartaoC=:=CC]))),	
 	F= fun() ->
-		if Q>0 ->
-			mnesia:write(#req{cC=CC, cod=Codigo});
+		if Q>0  ->
+			if A>0 ->
+				mnesia:write(#req{cC=CC, cod=Codigo});
+				true -> io:format("Não existe a pessoa!~n")
+			end;
 			
 			true ->  io:format("Não existe o código!~n")	
 		end
 	end,
 	mnesia:transaction(F).
 	
-
-	
-
 %-----------------------------------%
 %-----------retorno-----------------%
 
 %dado um número de cartão de cidadão e o código 
 %de um livro retira o par respectivo da base de dados
-
+%verifica se o codigo do livro existe na tabela livros
+%vai retirar da tabela req, senao imprime que n existe codigo
 retorno(CC,Codigo) ->
+	Q=length(do(qlc:q([X|| X<-mnesia:table(livro),
+		X#livro.codigo=:=Codigo]))),
+	A= length(do(qlc:q([X|| X<-mnesia:table(pessoa),
+		X#pessoa.cartaoC=:=CC]))),
 	F= fun() ->
-		mnesia:delete_object(#req{cC=CC, cod=Codigo})
+		if Q>0 ->
+			if A>0 ->
+				mnesia:delete_object(#req{cC=CC, cod=Codigo});
+				true-> io:format("Não existe a pessoa!~n")
+			end;
+
+			true-> io:format("Não existe o código!~n")
+		end
 	end,
 	mnesia:transaction(F).
 %--------------------------------------%
